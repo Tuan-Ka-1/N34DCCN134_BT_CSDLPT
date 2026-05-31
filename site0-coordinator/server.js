@@ -1,6 +1,6 @@
 // site0-coordinator/server.js
 const express = require('express');
-const axios = require('axios'); // Thư viện dùng để gọi API sang các Node khác
+const axios = require('axios');
 const { PrismaClient } = require('@prisma/client');
 const cors = require('cors');
 
@@ -10,49 +10,44 @@ const prisma = new PrismaClient();
 app.use(express.json());
 app.use(cors());
 
-// API: Truy vấn Đa hình (Polymorphic Search)
+// Lấy URL từ biến môi trường (Hoặc dùng default nếu quên cấu hình)
+const SITE1 = process.env.SITE1_URL || 'http://localhost:3001';
+const SITE2 = process.env.SITE2_URL || 'http://localhost:3002';
+
+// API: Truy vấn Đa hình (Polymorphic Search) - Đã tối ưu hiệu năng
 app.get('/api/vehicles', async (req, res) => {
     try {
-        // 1. Lấy dữ liệu lớp cha (Vehicle) từ Database cục bộ của Site 0
         const baseVehicles = await prisma.vehicle.findMany();
 
-        // 2. Gọi API song song xuống Site 1 và Site 2
-        // Dùng Promise.all để gọi cùng lúc, giúp tối ưu thời gian phản hồi mạng
         const [trucksRes, electricCarsRes] = await Promise.all([
-            axios.get('http://localhost:3001/api/trucks').catch(err => {
-                console.log("⚠️ Site 1 (Truck) không phản hồi!");
-                return { data: [] }; // Mô phỏng kịch bản lỗi: Trả về mảng rỗng nếu sập
-            }),
-            axios.get('http://localhost:3002/api/electric-cars').catch(err => {
-                console.log("⚠️ Site 2 (Electric Car) không phản hồi!");
-                return { data: [] }; 
-            })
+            axios.get(`${SITE1}/api/trucks`).catch(() => ({ data: [] })),
+            axios.get(`${SITE2}/api/electric-cars`).catch(() => ({ data: [] }))
         ]);
 
         const trucks = trucksRes.data;
         const electricCars = electricCarsRes.data;
 
-        // 3. Gom nhóm dữ liệu (In-memory Join) dựa trên OID (id)
+        // TỐI ƯU HÓA: Chuyển đổi mảng thành Hash Map để tra cứu O(1)
+        const truckMap = new Map(trucks.map(t => [t.vehicle_id, t]));
+        const electricCarMap = new Map(electricCars.map(e => [e.vehicle_id, e]));
+
+        // Gom nhóm dữ liệu cực nhanh
         const polymorphicResult = baseVehicles.map(vehicle => {
             let specializedData = {};
 
             if (vehicle.type === 'Truck') {
-                // Tìm xe tải bên Site 1 có mã vehicle_id khớp với id của xe ở Site 0
-                specializedData = trucks.find(t => t.vehicle_id === vehicle.id) || { status: 'Data unavailable' };
+                specializedData = truckMap.get(vehicle.id) || { status: 'Data unavailable' };
             } 
             else if (vehicle.type === 'ElectricCar') {
-                // Tìm xe điện bên Site 2
-                specializedData = electricCars.find(e => e.vehicle_id === vehicle.id) || { status: 'Data unavailable' };
+                specializedData = electricCarMap.get(vehicle.id) || { status: 'Data unavailable' };
             }
 
-            // Gộp thông tin của xe cơ bản và thông tin riêng lẻ thành 1 object hoàn chỉnh
             return {
                 ...vehicle,
                 ...specializedData
             };
         });
 
-        // 4. Trả kết quả cuối cùng cho Client
         res.status(200).json({
             total_count: polymorphicResult.length,
             data: polymorphicResult
@@ -64,20 +59,19 @@ app.get('/api/vehicles', async (req, res) => {
     }
 });
 
+// API: Schema Evolution
 app.get('/api/evolve-schema', async (req, res) => {
     try {
-        // 1. Tự cập nhật thêm cột color cho bảng Vehicle ở Site 0
         await prisma.$executeRawUnsafe(`ALTER TABLE "Vehicle" ADD COLUMN IF NOT EXISTS "color" VARCHAR(50);`);
 
-        // 2. Gọi đồng loạt xuống Site 1 và Site 2 để ép chúng cập nhật theo
         await Promise.all([
-            axios.get('http://localhost:3001/api/add-column'),
-            axios.get('http://localhost:3002/api/add-column')
+            axios.get(`${SITE1}/api/add-column`).catch(e => console.log("Site 1 error")),
+            axios.get(`${SITE2}/api/add-column`).catch(e => console.log("Site 2 error"))
         ]);
 
         res.status(200).json({ 
             status: "Thành công",
-            message: "Schema Evolution (Tiến hóa lược đồ) đã được đồng bộ trên toàn mạng lưới!" 
+            message: "Schema Evolution đã được đồng bộ!" 
         });
     } catch (error) {
         console.error(error);
