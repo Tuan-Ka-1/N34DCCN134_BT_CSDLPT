@@ -6,9 +6,11 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
 model Vehicle {
-  id        String  @id 
-  type      String  
-  brand     String
-  year      Int
+  id    String  @id
+  type  String
+  brand String
+  year  Int
+  color String? @db.VarChar(50)
 }

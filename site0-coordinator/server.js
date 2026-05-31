@@ -64,6 +64,27 @@ app.get('/api/vehicles', async (req, res) => {
     }
 });
 
+app.get('/api/evolve-schema', async (req, res) => {
+    try {
+        // 1. Tự cập nhật thêm cột color cho bảng Vehicle ở Site 0
+        await prisma.$executeRawUnsafe(`ALTER TABLE "Vehicle" ADD COLUMN IF NOT EXISTS "color" VARCHAR(50);`);
+
+        // 2. Gọi đồng loạt xuống Site 1 và Site 2 để ép chúng cập nhật theo
+        await Promise.all([
+            axios.get('http://localhost:3001/api/add-column'),
+            axios.get('http://localhost:3002/api/add-column')
+        ]);
+
+        res.status(200).json({ 
+            status: "Thành công",
+            message: "Schema Evolution (Tiến hóa lược đồ) đã được đồng bộ trên toàn mạng lưới!" 
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: "Lỗi đồng bộ cấu trúc mạng" });
+    }
+});
+
 const PORT = 3000;
 app.listen(PORT, () => {
     console.log(`🚀 Site 0 (Coordinator) đang chạy tại: http://localhost:${PORT}`);
