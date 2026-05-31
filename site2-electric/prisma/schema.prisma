@@ -1,11 +1,14 @@
 generator client {
   provider = "prisma-client-js"
 }
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
 model ElectricCar {
-  vehicle_id           String @id
+  vehicle_id           String  @id
   battery_capacity_kwh Float
+  color                String? @db.VarChar(50)
 }

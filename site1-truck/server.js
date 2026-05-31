@@ -17,4 +17,15 @@ app.get('/api/trucks', async (req, res) => {
     }
 });
 
+app.get('/api/add-column', async (req, res) => {
+    try {
+        // Dùng lệnh SQL thô để ép thêm cột 'color' vào bảng
+        await prisma.$executeRawUnsafe(`ALTER TABLE "Truck" ADD COLUMN IF NOT EXISTS "color" VARCHAR(50);`);
+        res.status(200).json({ message: "Đã cập nhật cấu trúc tại Site 1 (Truck)" });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: "Lỗi cập nhật cấu trúc Site 1" });
+    }
+});
+
 app.listen(3001, () => console.log('🚀 Site 1 (Truck) chạy tại port 3001'));
