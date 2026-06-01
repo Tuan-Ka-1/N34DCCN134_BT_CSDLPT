@@ -83,9 +83,15 @@ app.post('/api/vehicles', async (req, res) => {
         const { type, brand, year, color, load_capacity_tons, battery_capacity_kwh } = req.body;
         const vehicle_id = uuidv4(); // Sinh OID
 
-        // 1. Lưu thông tin chung ở Site 0
+        // 1. Lưu thông tin chung ở Site 0 bằng Prisma ORM (Bám sát kiến trúc đề ra)
+        const vehicleData = { id: vehicle_id, type, brand, year: parseInt(year) };
+        // Chỉ truyền color nếu có dữ liệu, giúp Prisma không báo lỗi khi schema chưa có cột này
+        if (color && color.trim() !== "") {
+            vehicleData.color = color;
+        }
+
         const newVehicle = await prisma.vehicle.create({
-            data: { id: vehicle_id, type, brand, year: parseInt(year), color }
+            data: vehicleData
         });
 
         // 2. Gọi Axios lưu phân mảnh
@@ -129,10 +135,15 @@ app.put('/api/vehicles/:id', async (req, res) => {
         const { id } = req.params;
         const { type, brand, year, color, load_capacity_tons, battery_capacity_kwh } = req.body;
 
-        // 1. Cập nhật thông tin chung ở Site 0
+        // 1. Cập nhật thông tin chung ở Site 0 bằng Prisma ORM
+        const updateData = { brand, year: parseInt(year) };
+        if (color && color.trim() !== "") {
+            updateData.color = color;
+        }
+
         const updatedVehicle = await prisma.vehicle.update({
             where: { id },
-            data: { brand, year: parseInt(year), color }
+            data: updateData
         });
 
         // 2. Gọi Axios cập nhật phân mảnh (dựa vào type hiện tại)
