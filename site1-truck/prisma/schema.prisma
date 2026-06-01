@@ -10,5 +10,4 @@ datasource db {
 model Truck {
   vehicle_id         String  @id
   load_capacity_tons Float
-  color              String? @db.VarChar(50)
 }

@@ -10,5 +10,4 @@ datasource db {
 model ElectricCar {
   vehicle_id           String  @id
   battery_capacity_kwh Float
-  color                String? @db.VarChar(50)
 }
