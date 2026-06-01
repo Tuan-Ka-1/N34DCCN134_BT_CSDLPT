@@ -12,5 +12,4 @@ model Vehicle {
   type  String
   brand String
   year  Int
-  color String? @db.VarChar(50)
 }
