@@ -28,4 +28,56 @@ app.get('/api/add-column', async (req, res) => {
     }
 });
 
+// THÊM API POST (Tạo xe điện mới)
+app.post('/api/electric-cars', async (req, res) => {
+    try {
+        const { vehicle_id, battery_capacity_kwh } = req.body;
+        const newCar = await prisma.electricCar.create({
+            data: {
+                vehicle_id,
+                battery_capacity_kwh: parseFloat(battery_capacity_kwh)
+            }
+        });
+        res.status(201).json(newCar);
+    } catch (error) {
+        console.error("Lỗi thêm Electric Car:", error);
+        res.status(500).json({ error: "Lỗi tạo Electric Car tại Site 2" });
+    }
+});
+
+// THÊM API DELETE (Xóa xe điện)
+app.delete('/api/electric-cars/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        await prisma.electricCar.delete({
+            where: { vehicle_id: id }
+        });
+        res.status(200).json({ message: "Xóa thành công" });
+    } catch (error) {
+        if (error.code === 'P2025') {
+            return res.status(404).json({ error: "Không tìm thấy Electric Car để xóa" });
+        }
+        console.error("Lỗi xóa Electric Car:", error);
+        res.status(500).json({ error: "Lỗi xóa Electric Car tại Site 2" });
+    }
+});
+
+// THÊM API PUT (Sửa xe điện)
+app.put('/api/electric-cars/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { battery_capacity_kwh } = req.body;
+        const updatedCar = await prisma.electricCar.update({
+            where: { vehicle_id: id },
+            data: {
+                battery_capacity_kwh: parseFloat(battery_capacity_kwh)
+            }
+        });
+        res.status(200).json(updatedCar);
+    } catch (error) {
+        console.error("Lỗi sửa Electric Car:", error);
+        res.status(500).json({ error: "Lỗi cập nhật Electric Car tại Site 2" });
+    }
+});
+
 app.listen(3002, () => console.log('🚀 Site 2 (Electric Car) chạy tại port 3002'));

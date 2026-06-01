@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vehicle Fleet Dashboard</title>
+    <style>
+        :root {
+            --bg-color: #121212;
+            --surface-color: #1e1e1e;
+            --primary-color: #bb86fc;
+            --secondary-color: #03dac6;
+            --error-color: #cf6679;
+            --success-color: #4caf50;
+            --text-primary: #ffffff;
+            --text-secondary: #b3b3b3;
+            --border-color: #333333;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        h1 { margin: 0; color: var(--primary-color); }
+
+        .status-bar {
+            display: flex;
+            gap: 15px;
+        }
+
+        .badge {
+            padding: 8px 12px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .badge::before {
+            content: '';
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+
+        .badge.online { background-color: rgba(76, 175, 80, 0.1); color: var(--success-color); border: 1px solid var(--success-color); }
+        .badge.online::before { background-color: var(--success-color); }
+        .badge.offline { background-color: rgba(207, 102, 121, 0.1); color: var(--error-color); border: 1px solid var(--error-color); }
+        .badge.offline::before { background-color: var(--error-color); }
+
+        .controls {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+
+        button {
+            background-color: var(--primary-color);
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.2s;
+        }
+
+        button:hover { opacity: 0.8; }
+        button.danger { background-color: var(--error-color); color: white; padding: 5px 10px; }
+        button.secondary { background-color: var(--secondary-color); }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: var(--surface-color);
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+
+        th, td {
+            padding: 15px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        th { background-color: #2c2c2c; color: var(--text-secondary); text-transform: uppercase; font-size: 12px; }
+        tr:hover { background-color: #2a2a2a; }
+
+        .unavailable { color: var(--error-color); font-style: italic; }
+
+        .performance-bar {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: var(--surface-color);
+            border-radius: 8px;
+            display: flex;
+            gap: 30px;
+            font-family: monospace;
+            color: var(--secondary-color);
+            border-left: 4px solid var(--secondary-color);
+        }
+
+        /* Modal Styles */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.7);
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal {
+            background: var(--surface-color);
+            padding: 30px;
+            border-radius: 8px;
+            width: 400px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            border: 1px solid var(--border-color);
+        }
+
+        .modal h2 { margin-top: 0; margin-bottom: 20px; color: var(--primary-color); }
+
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 5px; color: var(--text-secondary); font-size: 14px;}
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            background: var(--bg-color);
+            color: white;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 25px;
+        }
+        
+        .modal-actions button[type="button"] { background: transparent; color: white; border: 1px solid var(--border-color); }
+
+        #alert-box {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 25px;
+            border-radius: 4px;
+            color: white;
+            font-weight: bold;
+            display: none;
+            z-index: 2000;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <h1>Distributed Vehicle Fleet</h1>
+            <div class="status-bar" id="status-bar">
+                <div class="badge online" id="site0-badge">Site 0 (Coordinator)</div>
+                <div class="badge offline" id="site1-badge">Site 1 (Truck)</div>
+                <div class="badge offline" id="site2-badge">Site 2 (Electric)</div>
+            </div>
+        </header>
+
+        <div class="controls">
+            <button onclick="openModal()">+ Add New Vehicle</button>
+            <button class="secondary" onclick="evolveSchema()">🔄 Evolve Schema (Add Color)</button>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>OID (ID)</th>
+                    <th>Type</th>
+                    <th>Brand</th>
+                    <th>Year</th>
+                    <th>Color</th>
+                    <th>Specialized Data</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody id="table-body">
+                <!-- Data will be populated here -->
+            </tbody>
+        </table>
+
+        <div class="performance-bar" id="performance-bar">
+            <span>DB Fetch: 0ms</span>
+            <span>Network Fetch: 0ms</span>
+            <span>Total Time: 0ms</span>
+            <span>Count: 0</span>
+        </div>
+    </div>
+
+    <!-- Add Vehicle Modal -->
+    <div class="modal-overlay" id="modal">
+        <div class="modal">
+            <h2 id="modal-title">Add Vehicle</h2>
+            <form id="add-form" onsubmit="submitVehicle(event)">
+                <div class="form-group">
+                    <label>Type</label>
+                    <select id="v-type" onchange="toggleSpecializedField()">
+                        <option value="Truck">Truck</option>
+                        <option value="ElectricCar">Electric Car</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Brand</label>
+                    <input type="text" id="v-brand" required>
+                </div>
+                <div class="form-group">
+                    <label>Year</label>
+                    <input type="number" id="v-year" required>
+                </div>
+                <div class="form-group">
+                    <label>Color</label>
+                    <input type="text" id="v-color" placeholder="(Optional - Evolved Schema)">
+                </div>
+                
+                <div class="form-group" id="truck-fields">
+                    <label>Load Capacity (Tons)</label>
+                    <input type="number" step="0.1" id="v-load">
+                </div>
+                
+                <div class="form-group" id="electric-fields" style="display: none;">
+                    <label>Battery Capacity (kWh)</label>
+                    <input type="number" step="0.1" id="v-battery">
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" onclick="closeModal()">Cancel</button>
+                    <button type="submit">Save Distributed Record</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="alert-box"></div>
+
+    <script>
+        const API_URL = 'http://localhost:3000/api';
+        let vehiclesData = [];
+        let currentEditId = null;
+
+        async function fetchVehicles() {
+            try {
+                // Determine Site 0 status implicitly since we are calling it
+                document.getElementById('site0-badge').className = 'badge online';
+
+                const response = await fetch(`${API_URL}/vehicles`);
+                const result = await response.json();
+                
+                vehiclesData = result.data;
+                renderTable(result.data);
+                renderPerformance(result.performance, result.total_count);
+                renderStatus(result.node_status);
+            } catch (error) {
+                console.error("Error fetching data", error);
+                document.getElementById('site0-badge').className = 'badge offline';
+                showAlert("Failed to connect to Coordinator Node", "error");
+            }
+        }
+
+        function renderTable(data) {
+            const tbody = document.getElementById('table-body');
+            tbody.innerHTML = '';
+            
+            data.forEach(v => {
+                let specializedHtml = '';
+                if (v.status === 'Data unavailable') {
+                    specializedHtml = `<span class="unavailable">⚠️ Data Unavailable</span>`;
+                } else if (v.type === 'Truck') {
+                    specializedHtml = `Load: ${v.load_capacity_tons} Tons`;
+                } else if (v.type === 'ElectricCar') {
+                    specializedHtml = `Battery: ${v.battery_capacity_kwh} kWh`;
+                }
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td style="font-size:12px; color:#888;">${v.id}</td>
+                    <td><strong>${v.type}</strong></td>
+                    <td>${v.brand}</td>
+                    <td>${v.year}</td>
+                    <td>${v.color || '-'}</td>
+                    <td>${specializedHtml}</td>
+                    <td>
+                        <button class="secondary" style="padding: 5px 10px; margin-right: 5px;" onclick="openEditModal('${v.id}')">Edit</button>
+                        <button class="danger" onclick="deleteVehicle('${v.id}')">Delete</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function renderPerformance(perf, count) {
+            if(!perf) return;
+            const pBar = document.getElementById('performance-bar');
+            pBar.innerHTML = `
+                <span>DB Fetch (Site0): ${perf.db_fetch_ms}ms</span>
+                <span>Network Fetch (Site1+2): ${perf.network_fetch_ms}ms</span>
+                <span style="color:var(--text-primary)">Total Elapsed: <strong>${perf.total_ms}ms</strong></span>
+                <span>Count: ${count}</span>
+            `;
+        }
+
+        function renderStatus(statusArray) {
+            if(!statusArray) return;
+            const s1 = document.getElementById('site1-badge');
+            const s2 = document.getElementById('site2-badge');
+            
+            statusArray.forEach(s => {
+                if(s.site.includes('Site 1')) {
+                    s1.className = s.online ? 'badge online' : 'badge offline';
+                }
+                if(s.site.includes('Site 2')) {
+                    s2.className = s.online ? 'badge online' : 'badge offline';
+                }
+            });
+        }
+
+        async function deleteVehicle(id) {
+            if(!confirm("Xóa xe này trên toàn bộ hệ thống phân tán?")) return;
+            try {
+                await fetch(`${API_URL}/vehicles/${id}`, { method: 'DELETE' });
+                showAlert("Vehicle deleted successfully from all nodes", "success");
+                fetchVehicles();
+            } catch(e) {
+                showAlert("Failed to delete vehicle", "error");
+            }
+        }
+
+        async function submitVehicle(e) {
+            e.preventDefault();
+            const type = document.getElementById('v-type').value;
+            const brand = document.getElementById('v-brand').value;
+            const year = document.getElementById('v-year').value;
+            const color = document.getElementById('v-color').value;
+            
+            const payload = { type, brand, year, color };
+
+            if(type === 'Truck') {
+                payload.load_capacity_tons = document.getElementById('v-load').value;
+            } else {
+                payload.battery_capacity_kwh = document.getElementById('v-battery').value;
+            }
+
+            try {
+                const method = currentEditId ? 'PUT' : 'POST';
+                const url = currentEditId ? `${API_URL}/vehicles/${currentEditId}` : `${API_URL}/vehicles`;
+
+                const res = await fetch(url, {
+                    method: method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                
+                if(res.ok) {
+                    closeModal();
+                    showAlert(`Vehicle ${currentEditId ? 'updated' : 'created'} across distributed nodes!`, "success");
+                    fetchVehicles();
+                } else {
+                    const err = await res.json();
+                    showAlert(err.error || "Failed to create", "error");
+                }
+            } catch(error) {
+                showAlert("Network error", "error");
+            }
+        }
+
+        async function evolveSchema() {
+            try {
+                const res = await fetch(`${API_URL}/evolve-schema`);
+                if(res.ok) {
+                    showAlert("Schema Evolution applied to all nodes!", "success");
+                    fetchVehicles();
+                }
+            } catch (error) {
+                showAlert("Failed to evolve schema", "error");
+            }
+        }
+
+        // UI Helpers
+        function toggleSpecializedField() {
+            const type = document.getElementById('v-type').value;
+            document.getElementById('truck-fields').style.display = type === 'Truck' ? 'block' : 'none';
+            document.getElementById('electric-fields').style.display = type === 'ElectricCar' ? 'block' : 'none';
+        }
+
+        function openModal() { 
+            currentEditId = null;
+            document.getElementById('modal-title').textContent = 'Add Vehicle';
+            document.getElementById('v-type').disabled = false;
+            document.getElementById('add-form').reset();
+            toggleSpecializedField();
+            document.getElementById('modal').style.display = 'flex'; 
+        }
+
+        function openEditModal(id) {
+            const v = vehiclesData.find(x => x.id === id);
+            if(!v) return;
+            currentEditId = id;
+            
+            document.getElementById('modal-title').textContent = 'Edit Vehicle';
+            document.getElementById('v-type').value = v.type;
+            document.getElementById('v-type').disabled = true;
+            document.getElementById('v-brand').value = v.brand;
+            document.getElementById('v-year').value = v.year;
+            document.getElementById('v-color').value = v.color || '';
+            
+            toggleSpecializedField();
+            if(v.type === 'Truck') {
+                document.getElementById('v-load').value = v.load_capacity_tons || '';
+            } else {
+                document.getElementById('v-battery').value = v.battery_capacity_kwh || '';
+            }
+            
+            document.getElementById('modal').style.display = 'flex';
+        }
+        function closeModal() { 
+            document.getElementById('modal').style.display = 'none'; 
+            document.getElementById('add-form').reset();
+            toggleSpecializedField();
+        }
+
+        function showAlert(msg, type) {
+            const box = document.getElementById('alert-box');
+            box.textContent = msg;
+            box.style.display = 'block';
+            box.style.backgroundColor = type === 'success' ? 'var(--success-color)' : 'var(--error-color)';
+            setTimeout(() => { box.style.display = 'none'; }, 3000);
+        }
+
+        // Init
+        fetchVehicles();
+        // Auto refresh every 5s to show realtime status
+        setInterval(fetchVehicles, 5000);
+    </script>
+</body>
+</html>
