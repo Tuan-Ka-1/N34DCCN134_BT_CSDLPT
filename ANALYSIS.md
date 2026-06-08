@@ -23,3 +23,16 @@ Chúng tôi đã triển khai cơ chế **Cập nhật tức thời (Eager Updat
 
 ## 4. Khả năng chịu lỗi (Fault Tolerance) & Nhận thức mạng (Network Awareness)
 Các truy vấn phân tán rất dễ bị lỗi một phần (partial failures). Nếu Site 1 gặp sự cố, quá trình kết nối (join) tức thời sẽ khiến toàn bộ truy vấn toàn cục bị lỗi. Chúng tôi giảm thiểu rủi ro này bằng cách sử dụng phương pháp fail-soft (giảm thiểu lỗi). Nếu một node con bị timeout hoặc từ chối kết nối, Trạm điều phối sẽ bắt lỗi và trả về đối tượng cơ sở với cờ chuyên biệt `status: "Data unavailable"`. Điều này đảm bảo hệ thống duy trì tính Khả dụng (Availability) cao đối với các phân vùng khỏe mạnh (ví dụ: Xe điện) ngay cả khi phân vùng Xe tải bị ngắt kết nối. Hơn nữa, hệ thống còn đo lường và hiển thị chính xác thời gian `network_fetch_ms` so với `db_fetch_ms` để cung cấp khả năng quan sát toàn diện về chi phí tái tạo đối tượng xuyên suốt các trạm phân tán.
+
+## 5. Kết quả Thực nghiệm (Empirical Proofs)
+*Phần này dùng để chứng minh các biện luận lý thuyết ở trên bằng kết quả chạy thực tế.*
+
+### 5.1. So sánh chi phí tải dữ liệu (Network vs Database)
+*(Ảnh chụp console hoặc màn hình dashboard chứng minh `db_fetch_ms` và `network_fetch_ms`)*
+![Performance Benchmark](./performance_benchmark.png)
+> **Biện luận:** Như có thể thấy từ kết quả, nhờ áp dụng In-Memory Hash Join và Promise.all, độ trễ truy xuất qua mạng (Network Fetch) được kiểm soát ở mức cho phép, không gây tắc nghẽn (bottleneck) đáng kể so với việc truy xuất DB cục bộ.
+
+### 5.2. Kịch bản Đứt gãy phân vùng (Partition Failure)
+*(Ảnh chụp màn hình khi Site 1 tắt, trả về lỗi Data Unavailable nhưng danh sách xe vẫn load được)*
+![Fault Tolerance Demo](./fault_tolerance.png)
+> **Biện luận:** Việc xử lý lỗi mượt mà (Graceful Degradation) đã giúp duy trì tính Khả dụng (Availability) trong định lý CAP, đánh đổi một phần tính Toàn vẹn dữ liệu (chấp nhận thiếu thông tin tải trọng của Xe tải) thay vì làm sập toàn bộ hệ thống.
