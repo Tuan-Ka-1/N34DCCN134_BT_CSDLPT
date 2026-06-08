@@ -195,8 +195,15 @@
         </header>
 
         <div class="controls">
-            <button onclick="openModal()">+ Add New Vehicle</button>
-            <button class="secondary" onclick="evolveSchema()">🔄 Evolve Schema (Add Color)</button>
+            <div>
+                <button onclick="openModal()">+ Add New Vehicle</button>
+                <button class="secondary" onclick="evolveSchema()">🔄 Evolve Schema (2PC)</button>
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <label for="strict-mode" style="color: var(--secondary-color); font-weight: bold; cursor: pointer;" title="Ưu tiên Consistency: Sẽ báo lỗi nếu 1 Node bị đứt">
+                    <input type="checkbox" id="strict-mode" onchange="fetchVehicles()"> Strict Mode (Consistency)
+                </label>
+            </div>
         </div>
 
         <table>
@@ -217,9 +224,7 @@
         </table>
 
         <div class="performance-bar" id="performance-bar">
-            <span>DB Fetch: 0ms</span>
-            <span>Network Fetch: 0ms</span>
-            <span>Total Time: 0ms</span>
+            <span style="color:var(--text-primary)">Distributed Query Latency: <strong>0ms</strong></span>
             <span>Count: 0</span>
         </div>
     </div>
@@ -276,20 +281,25 @@
 
         async function fetchVehicles() {
             try {
-                // Determine Site 0 status implicitly since we are calling it
+                const isStrict = document.getElementById('strict-mode')?.checked || false;
                 document.getElementById('site0-badge').className = 'badge online';
 
-                const response = await fetch(`${API_URL}/vehicles`);
+                const response = await fetch(`${API_URL}/vehicles?strict=${isStrict}`);
+                if (!response.ok) {
+                    const errorObj = await response.json();
+                    throw new Error(errorObj.error || "Lỗi truy vấn");
+                }
                 const result = await response.json();
                 
                 vehiclesData = result.data;
                 renderTable(result.data);
-                renderPerformance(result.performance, result.total_count);
+                renderPerformance(result.total_ms, result.total_count);
                 renderStatus(result.node_status);
             } catch (error) {
                 console.error("Error fetching data", error);
-                document.getElementById('site0-badge').className = 'badge offline';
-                showAlert("Failed to connect to Coordinator Node", "error");
+                document.getElementById('table-body').innerHTML = ''; // Xóa dữ liệu rác nếu Strict Mode
+                renderPerformance(0, 0);
+                showAlert(error.message || "Không thể kết nối đến Coordinator", "error");
             }
         }
 
@@ -324,14 +334,11 @@
             });
         }
 
-        function renderPerformance(perf, count) {
-            if(!perf) return;
+        function renderPerformance(totalMs, count) {
             const pBar = document.getElementById('performance-bar');
             pBar.innerHTML = `
-                <span>DB Fetch (Site0): ${perf.db_fetch_ms}ms</span>
-                <span>Network Fetch (Site1+2): ${perf.network_fetch_ms}ms</span>
-                <span style="color:var(--text-primary)">Total Elapsed: <strong>${perf.total_ms}ms</strong></span>
-                <span>Count: ${count}</span>
+                <span style="color:var(--text-primary)">Distributed Query Latency: <strong>${totalMs || 0}ms</strong></span>
+                <span>Count: ${count || 0}</span>
             `;
         }
 
@@ -401,10 +408,13 @@
 
         async function evolveSchema() {
             try {
-                const res = await fetch(`${API_URL}/evolve-schema`);
+                const res = await fetch(`${API_URL}/schema/evolve`, { method: 'POST' });
                 if(res.ok) {
-                    showAlert("Schema Evolution applied to all nodes!", "success");
+                    showAlert("Schema Evolution (2PC) applied to all nodes!", "success");
                     fetchVehicles();
+                } else {
+                    const err = await res.json();
+                    showAlert(err.error || "Failed to evolve schema", "error");
                 }
             } catch (error) {
                 showAlert("Failed to evolve schema", "error");
